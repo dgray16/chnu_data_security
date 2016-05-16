@@ -18,6 +18,6 @@
    </rowConstraints>
    <children>
       <Label fx:id="helloLabel" text="Insert USB drive" />
-      <Button fx:id="passwordButton" mnemonicParsing="false" onAction="#showNewPasswordForm" prefHeight="25.0" prefWidth="117.0" text="Set new password" visible="false" GridPane.rowIndex="1" />
+      <Button fx:id="passwordButton" mnemonicParsing="false" onAction="#showNewPasswordForm" prefHeight="25.0" prefWidth="140.0" text="Set new password" visible="false" GridPane.rowIndex="1" />
    </children>
 </GridPane>

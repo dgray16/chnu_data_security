@@ -14,6 +14,9 @@ import java.io.*;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Timestamp;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -21,17 +24,16 @@ import java.util.Properties;
  * Created by Administrator on 06.04.2016.
  */
 public class NewPasswordController {
+
     @FXML
     private PasswordField loginField;
 
     @FXML
     private PasswordField passwordField;
 
-    private Alert alertBox;
-
     private Cipher DESCipher;
 
-    public static Stage currentStage;
+    static Stage currentStage;
 
 
     public void commitNewCredentials() {
@@ -40,7 +42,7 @@ public class NewPasswordController {
             saveNewPropertirsFileToUSB(getLocalPropertiesFile());
             currentStage.close();
         } else {
-            alertBox = new Alert(Alert.AlertType.ERROR);
+            Alert alertBox = new Alert(Alert.AlertType.ERROR);
             alertBox.setContentText("");
             alertBox.setHeaderText("Fields are empty");
             alertBox.initOwner(MainController.mainStage.getScene().getWindow());
@@ -62,7 +64,7 @@ public class NewPasswordController {
 
     private String encryptLogin() {
         String message = loginField.getText();
-        byte[] encoded = null;
+        byte[] encoded;
         StringBuffer sb = null;
 
         try {
@@ -75,9 +77,7 @@ public class NewPasswordController {
             for (int i = 0; i < encoded.length; i++)
                 sb.append(Integer.toString((encoded[i] & 0xff) + 0x100, 16).substring(1));
 
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        } catch (UnsupportedEncodingException e) {
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             e.printStackTrace();
         }
         return sb.toString();
@@ -136,13 +136,10 @@ public class NewPasswordController {
 
             encrypted = DESCipher.doFinal(utf8);
 
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        } catch (BadPaddingException e) {
-            e.printStackTrace();
-        } catch (IllegalBlockSizeException e) {
+        } catch (UnsupportedEncodingException | IllegalBlockSizeException | BadPaddingException e) {
             e.printStackTrace();
         }
+
         return new BASE64Encoder().encode(encrypted);
     }
 
@@ -150,12 +147,11 @@ public class NewPasswordController {
         try {
             properties.setProperty("login", encryptLogin());
             properties.setProperty("password", encryptPassword());
+            properties.setProperty("timestamp", MainController.timestampGlobal);
 
             File file = new File(new File("").getAbsoluteFile() + "\\src\\sample\\credentials.properties");
             OutputStream outputStream = new FileOutputStream(file);
             properties.store(outputStream, "");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -165,14 +161,25 @@ public class NewPasswordController {
         try {
             properties.setProperty("login", encryptLogin());
             properties.setProperty("password", encryptPassword());
+            properties.setProperty("timestamp", MainController.timestampGlobal);
 
-            File file = MainController.findFileOnUSB();
+            File file;
+            if ( MainController.getOperatingSystemName().equals("Mac OS X") )
+                file = MainController.findFileOnUSBForMac();
+            else file = MainController.findFileOnUSBForWindows();
+
             OutputStream outputStream = new FileOutputStream(file);
             properties.store(outputStream, "");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    static String createTimestamp(){
+        Calendar calendar = Calendar.getInstance();
+        Date now = calendar.getTime();
+        Timestamp timestamp = new Timestamp(now.getTime());
+
+        return timestamp.toString();
     }
 }

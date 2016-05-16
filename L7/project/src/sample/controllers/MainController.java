@@ -1,8 +1,6 @@
 package sample.controllers;
 
-import com.codeminders.hidapi.ClassPathLibraryLoader;
-import com.codeminders.hidapi.HIDDeviceInfo;
-import com.codeminders.hidapi.HIDManager;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -18,15 +16,10 @@ import sample.Main;
 import javax.swing.filechooser.FileSystemView;
 import java.io.*;
 import java.net.URL;
-import java.sql.Timestamp;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Properties;
-import java.util.ResourceBundle;
+import java.util.*;
 
 public class MainController implements Initializable{
 
-    // TODO hide file on USB (Hidden flag works bad)
 
     private Alert alertBox;
 
@@ -45,7 +38,11 @@ public class MainController implements Initializable{
 
     public static Stage mainStage;
 
-    private static File[] initListOfDevices = File.listRoots();
+    private static File[] initListOfWindowsDevices = File.listRoots();
+
+    private static int initListOfMacDevices = 0;
+
+    static String timestampGlobal;
 
     @FXML
     private Label helloLabel;
@@ -54,9 +51,8 @@ public class MainController implements Initializable{
     private Button passwordButton;
 
 
-    public static File findFileOnUSB(){
+    static File findFileOnUSBForWindows(){
         File[] paths;
-        FileSystemView fileSystemView = FileSystemView.getFileSystemView();
 
         // Returns pathnames for files and directory
         paths = File.listRoots();
@@ -138,14 +134,21 @@ public class MainController implements Initializable{
 
     private void createAndWriteTimestamp(){
         try {
-            Properties properties = getPropertiesByFile(findFileOnUSB());
-            Calendar calendar = Calendar.getInstance();
-            Date now = calendar.getTime();
-            Timestamp timestamp = new Timestamp(now.getTime());
-            properties.setProperty("timestamp", timestamp.toString());
+            Properties properties;
+
+            if ( getOperatingSystemName().equals("Mac OS X") )
+                properties = getPropertiesByFile(findFileOnUSBForMac());
+            else properties = getPropertiesByFile(findFileOnUSBForWindows());
+
+            timestampGlobal = NewPasswordController.createTimestamp();
+            properties.setProperty("timestamp", timestampGlobal);
 
             // Save data on USB
-            OutputStream outputStream = new FileOutputStream(findFileOnUSB());
+            OutputStream outputStream;
+
+            if ( getOperatingSystemName().equals("Mac OS X") )
+                outputStream = new FileOutputStream(findFileOnUSBForMac());
+            else outputStream = new FileOutputStream(findFileOnUSBForWindows());
             properties.store(outputStream, "");
 
             // Save data on Local file
@@ -157,7 +160,7 @@ public class MainController implements Initializable{
         }
     }
 
-    private String getOperatingSystemName(){
+    static String getOperatingSystemName(){
         return System.getProperty("os.name");
     }
 
@@ -170,38 +173,19 @@ public class MainController implements Initializable{
                     e.printStackTrace();
                 }
 
-                if ( File.listRoots().length > initListOfDevices.length ) {
+                if ( File.listRoots().length > initListOfWindowsDevices.length ) {
 
-                    if ( findFileOnUSB() != null ) {
-                        alertBox = new Alert(Alert.AlertType.INFORMATION);
-                        alertBox.setHeaderText("File found!");
-                        alertBox.setContentText("");
-                        alertBox.initOwner(mainStage.getScene().getWindow());
-                        alertBox.showAndWait();
+                    if ( findFileOnUSBForWindows() != null ) {
+                        callFileFoundAlertBox();
 
                         try {
-                            Properties properties = getPropertiesByFile(findFileOnUSB());
+                            Properties properties = getPropertiesByFile(findFileOnUSBForWindows());
                             setLogin(properties.getProperty("login"));
                             setPassword(properties.getProperty("password"));
                             setTimestamp(properties.getProperty("timestamp"));
 
                             if ( properties.get("login") != null )
-
-                                if ( properties.get("login").equals(login) &&
-                                        properties.get("password").equals(password)
-                                        /*properties.get("timestamp").equals(timestamp)*/ ) {
-
-                                    helloLabel.setText("Welcome user!");
-                                    passwordButton.setVisible(true);
-                                    createAndWriteTimestamp();
-
-                                } else {
-                                    alertBox.setAlertType(Alert.AlertType.ERROR);
-                                    alertBox.setHeaderText("Not valid security file");
-                                    alertBox.setContentText("");
-                                    alertBox.initOwner(mainStage.getScene().getWindow());
-                                    alertBox.showAndWait();
-                                }
+                                authorization(properties);
 
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -210,8 +194,8 @@ public class MainController implements Initializable{
                         break;
                     }
 
-                } else if ( File.listRoots().length < initListOfDevices.length ) {
-                    initListOfDevices = File.listRoots();
+                } else if ( File.listRoots().length < initListOfWindowsDevices.length ) {
+                    initListOfWindowsDevices = File.listRoots();
                 }
 
             }
@@ -221,7 +205,8 @@ public class MainController implements Initializable{
     }
 
     private void macHandler(){
-
+        if ( getOperatingSystemName().equals("Mac OS X") )
+            initListOfMacDevices = getListOfUSBDevicesOnMacOSX();
 
         javafx.application.Platform.runLater(() -> {
             while (true) {
@@ -231,23 +216,88 @@ public class MainController implements Initializable{
                     e.printStackTrace();
                 }
 
-                findDeviceOnMac();
+                if ( findDeviceOnMac() )
+                    break;
 
             }
         });
     }
 
-    private void findDeviceOnMac(){
+    private boolean findDeviceOnMac(){
+        if ( getListOfUSBDevicesOnMacOSX() > initListOfMacDevices ){
+            if ( findFileOnUSBForMac() != null ){
+                callFileFoundAlertBox();
 
-        try {
-            ClassPathLibraryLoader.loadNativeHIDLibrary();
-            HIDManager hidManager = HIDManager.getInstance();
-            HIDDeviceInfo[] infos = hidManager.listDevices();
-        } catch (IOException e) {
-            e.printStackTrace();
+                try {
+                    Properties properties = getPropertiesByFile(findFileOnUSBForMac());
+                    setLogin(properties.getProperty("login"));
+                    setPassword(properties.getProperty("password"));
+                    setTimestamp(properties.getProperty("timestamp"));
+
+                    if ( properties.get("login") != null )
+                        authorization(properties);
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                return true;
+            }
+        } else if ( getListOfUSBDevicesOnMacOSX() < initListOfMacDevices ) {
+            initListOfMacDevices = getListOfUSBDevicesOnMacOSX();
+
         }
 
+        return false;
     }
+
+    private int getListOfUSBDevicesOnMacOSX(){
+        return new File("/Volumes").listFiles().length;
+    }
+
+    static File findFileOnUSBForMac(){
+        File volumes = new File("/Volumes");
+
+        for (File currentDrive : volumes.listFiles()){
+            if ( currentDrive.listFiles() != null )
+                for ( File currentFile : currentDrive.listFiles() )
+                    if ( currentFile.getName().equals("security.properties") )
+                        return currentFile;
+        }
+
+        return null;
+    }
+
+    private void callFileFoundAlertBox() {
+        alertBox = new Alert(Alert.AlertType.INFORMATION);
+        alertBox.setHeaderText("File found!");
+        alertBox.setContentText("");
+        alertBox.initOwner(mainStage.getScene().getWindow());
+        alertBox.showAndWait();
+    }
+
+    private void callNotValidSecurityFileAlertBox() {
+        alertBox.setAlertType(Alert.AlertType.ERROR);
+        alertBox.setHeaderText("Not valid security file");
+        alertBox.setContentText("");
+        alertBox.initOwner(mainStage.getScene().getWindow());
+        alertBox.showAndWait();
+    }
+
+    private void authorization(Properties properties) {
+        if ( properties.get("login").equals(login) &&
+                properties.get("password").equals(password) &&
+                properties.get("timestamp").equals(timestamp) ) {
+
+            helloLabel.setText("Welcome user!");
+            passwordButton.setVisible(true);
+            createAndWriteTimestamp();
+
+        } else {
+            callNotValidSecurityFileAlertBox();
+        }
+    }
+
 
     public void setLogin(String login) {
         this.login = login;
