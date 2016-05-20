@@ -3,14 +3,26 @@ package sample.controllers;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.PasswordField;
-import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 import sample.Main;
 import sun.misc.BASE64Encoder;
 
-import javax.crypto.*;
+
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.*;
+import javax.crypto.BadPaddingException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.io.FileOutputStream;
+import java.io.File;
+
+
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -114,19 +126,20 @@ public class NewPasswordController {
 
             DESCipher.init(Cipher.ENCRYPT_MODE, secretKey1);
             enctyptedPart1 = desEncrypt(messagePart1);
+
+
             DESCipher.init(Cipher.ENCRYPT_MODE, secretKey2);
             enctyptedPart2 = desEncrypt(messagePart2);
 
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        } catch (NoSuchPaddingException e) {
-            e.printStackTrace();
-        } catch (InvalidKeyException e) {
+
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {
             e.printStackTrace();
         }
-
+        // TODO property file cannot store whitespaces and just "=", replace it
         return enctyptedPart1 + enctyptedPart2;
     }
+
+
 
     private String desEncrypt(String message){
         byte[] encrypted = null;

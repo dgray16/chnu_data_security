@@ -13,10 +13,23 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import sample.Main;
 
-import javax.swing.filechooser.FileSystemView;
-import java.io.*;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+
 import java.net.URL;
-import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Properties;
+import java.util.ResourceBundle;
 
 public class MainController implements Initializable{
 
@@ -33,8 +46,6 @@ public class MainController implements Initializable{
 
     // Example: 2016-04-20 12:05:16.338
     private String timestamp;
-
-    private Properties localProperties;
 
     public static Stage mainStage;
 
@@ -54,7 +65,7 @@ public class MainController implements Initializable{
     static File findFileOnUSBForWindows(){
         File[] paths;
 
-        // Returns pathnames for files and directory
+        // Returns path names for files and directory
         paths = File.listRoots();
 
         for (File currentDrive : paths){
@@ -121,7 +132,7 @@ public class MainController implements Initializable{
     private void waitForNewDevice(){
 
         switch (getOperatingSystemName()){
-            case "WINdOWS":
+            case "Windows 10":
                 windowsHandler();
                 break;
 
@@ -161,7 +172,123 @@ public class MainController implements Initializable{
     }
 
     static String getOperatingSystemName(){
+        //File file = openOrCreateFileOnUSB();
+
+        //writeToFile(file);
+        //Properties properties = parseFile(file);
+
+
+
         return System.getProperty("os.name");
+    }
+
+    static File openOrCreateFileOnUSB() {
+        File[] paths;
+
+        // Returns path names for files and directory
+        paths = File.listRoots();
+
+        for (File currentDrive : paths){
+            if ( currentDrive.listFiles() != null )
+                for ( File currentFile : currentDrive.listFiles() )
+                    if ( currentFile.getName().equals("security-new.properties") ){
+                        return currentFile;
+                    }
+        }
+
+        return new File("G://security-new.properties");
+    }
+
+    static void writeToFile(File file) {
+        Properties properties = new Properties();
+        InputStream inputStream = Main.class.getResourceAsStream("credentials.properties");
+
+        try {
+            OutputStream outputStream = new FileOutputStream(file);
+            OutputStreamWriter outputStreamWriter = new OutputStreamWriter(outputStream, "UTF-8");
+            BufferedWriter bufferedWriter = new BufferedWriter(outputStreamWriter);
+            properties.load(inputStream);
+
+            byte[] loginBytes = properties.getProperty("login").getBytes(StandardCharsets.UTF_8);
+            writeBytesToFile(loginBytes, bufferedWriter);
+
+            byte[] passwordBytes = properties.getProperty("password").getBytes(StandardCharsets.UTF_8);
+            writeBytesToFile(passwordBytes, bufferedWriter);
+
+            byte[] timestampBytes = properties.getProperty("timestamp").getBytes(StandardCharsets.UTF_8);
+            writeBytesToFile(timestampBytes, bufferedWriter);
+
+            bufferedWriter.flush();
+            bufferedWriter.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static void writeBytesToFile(byte[] bytes, BufferedWriter bufferedWriter) {
+        for (byte currentByte : bytes) {
+            try {
+                bufferedWriter.write(Byte.toString(currentByte));
+                bufferedWriter.write(" ");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Word "nwln" is shows end of each property
+        try {
+            bufferedWriter.write("nwln");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // TODO make non static
+    static Properties parseFile(File file) {
+        BufferedReader bufferedReader = null;
+        try {
+            bufferedReader = new BufferedReader(new FileReader(file));
+            StringBuilder stringBuilder = new StringBuilder();
+            String line = bufferedReader.readLine();
+
+            while (line != null) {
+                stringBuilder.append(line);
+                stringBuilder.append(System.lineSeparator());
+                line = bufferedReader.readLine();
+            }
+
+            String text = stringBuilder.toString();
+            String login = byteToString(text.split("nwln")[0].split(" "));
+            String password = byteToString(text.split("nwln")[1].split(" "));
+            String timestamp = byteToString(text.split("nwln")[3].split(" "));
+            System.out.println("123");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                bufferedReader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return null;
+    }
+
+    static String byteToString(String[] strings) {
+        StringBuilder result = new StringBuilder();
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        byteArrayOutputStream.reset();
+
+
+        for (String current : strings)
+            byteArrayOutputStream.write(new Byte(current));
+
+        result.append(new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8));
+
+        return result.toString();
     }
 
     private void windowsHandler(){
@@ -173,7 +300,8 @@ public class MainController implements Initializable{
                     e.printStackTrace();
                 }
 
-                if ( File.listRoots().length > initListOfWindowsDevices.length ) {
+                // Wait for USB input or just find it on HDD
+                if ( File.listRoots().length > initListOfWindowsDevices.length || findFileOnUSBForWindows() != null ) {
 
                     if ( findFileOnUSBForWindows() != null ) {
                         callFileFoundAlertBox();
