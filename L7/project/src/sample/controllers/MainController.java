@@ -1,6 +1,8 @@
 package sample.controllers;
 
 
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -315,8 +317,7 @@ public class MainController implements Initializable{
         if ( getOperatingSystemName().equals("Mac OS X") )
             initListOfMacDevices = getListOfUSBDevicesOnMacOSX();
 
-        // TODO maybe because of javafx thread there is no label on Mac?
-        javafx.application.Platform.runLater(() -> {
+        new Thread(()-> {
             while (true) {
                 if ( findDeviceOnMac() )
                     break;
@@ -326,9 +327,8 @@ public class MainController implements Initializable{
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-
             }
-        });
+        }).start();
     }
 
     private boolean findDeviceOnMac(){
@@ -363,19 +363,23 @@ public class MainController implements Initializable{
 
 
     private void callFileFoundAlertBox() {
-        alertBox = new Alert(Alert.AlertType.INFORMATION);
-        alertBox.setHeaderText("File found!");
-        alertBox.setContentText("");
-        alertBox.initOwner(mainStage.getScene().getWindow());
-        alertBox.showAndWait();
+        Platform.runLater(()-> {
+            alertBox = new Alert(Alert.AlertType.INFORMATION);
+            alertBox.setHeaderText("File found!");
+            alertBox.setContentText("");
+            alertBox.initOwner(mainStage.getScene().getWindow());
+            alertBox.showAndWait();
+        });
     }
 
     private void callNotValidSecurityFileAlertBox() {
-        alertBox.setAlertType(Alert.AlertType.ERROR);
-        alertBox.setHeaderText("Not valid security file");
-        alertBox.setContentText("");
-        alertBox.initOwner(mainStage.getScene().getWindow());
-        alertBox.showAndWait();
+        Platform.runLater(()-> {
+            alertBox.setAlertType(Alert.AlertType.ERROR);
+            alertBox.setHeaderText("Not valid security file");
+            alertBox.setContentText("");
+            alertBox.initOwner(mainStage.getScene().getWindow());
+            alertBox.showAndWait();
+        });
     }
 
     private void authorization(Properties properties) {
@@ -383,8 +387,11 @@ public class MainController implements Initializable{
                 properties.get("password").equals(password) &&
                 properties.get("timestamp").equals(timestamp) ) {
 
-            helloLabel.setText("Welcome user!");
-            passwordButton.setVisible(true);
+            Platform.runLater(()-> {
+                helloLabel.setText("Welcome user!");
+                passwordButton.setVisible(true);
+            });
+
             createAndWriteTimestamp();
 
         } else {
