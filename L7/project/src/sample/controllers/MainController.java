@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -62,43 +61,49 @@ public class MainController implements Initializable{
     private Button passwordButton;
 
 
-    static File findFileOnUSBForWindows(){
+    static File findFileOnUSBForWindows() {
         File[] paths;
 
         // Returns path names for files and directory
         paths = File.listRoots();
 
-        for (File currentDrive : paths){
+        for (File currentDrive : paths) {
             if ( currentDrive.listFiles() != null )
                 for ( File currentFile : currentDrive.listFiles() )
-                    if ( currentFile.getName().equals("security.properties") ){
+                    if ( currentFile.getName().equals("security-new.properties") ) {
                         return currentFile;
                     }
 
         }
+
         return null;
     }
 
-    private Properties getPropertiesByFile(File file) throws IOException {
-        Properties properties = new Properties();
-        InputStream inputStream = new FileInputStream(file);
+    static File findFileOnUSBForMac() {
+        File volumes = new File("/Volumes");
 
-        properties.load(inputStream);
+        for (File currentDrive : volumes.listFiles()){
+            if ( currentDrive.listFiles() != null )
+                for ( File currentFile : currentDrive.listFiles() )
+                    if ( currentFile.getName().equals("security-new.properties") )
+                        return currentFile;
+        }
 
-        return properties;
+        return null;
     }
 
-    private void setPropertiesFile() throws IOException {
+    private Properties getLocalPropertiesFile() throws IOException {
         String filename = "credentials.properties";
         Properties properties = new Properties();
 
         InputStream inputStream = Main.class.getResourceAsStream(filename);
 
         properties.load(inputStream);
+
+        return properties;
     }
 
-
-    public void showNewPasswordForm(){
+    public void showNewPasswordForm() {
         javafx.application.Platform.runLater(() -> {
             Parent root = null;
             Stage stage = new Stage();
@@ -120,18 +125,12 @@ public class MainController implements Initializable{
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        mainStage.setOnShown(event -> waitForNewDevice());
-
-        try {
-            setPropertiesFile();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        waitForNewDevice();
     }
 
-    private void waitForNewDevice(){
+    private void waitForNewDevice() {
 
-        switch (getOperatingSystemName()){
+        switch (getOperatingSystemName()) {
             case "Windows 10":
                 windowsHandler();
                 break;
@@ -143,60 +142,39 @@ public class MainController implements Initializable{
 
     }
 
-    private void createAndWriteTimestamp(){
+    private void createAndWriteTimestamp() {
+        // Save data to local file
+        timestampGlobal = NewPasswordController.createTimestamp();
         try {
-            Properties properties;
-
-            if ( getOperatingSystemName().equals("Mac OS X") )
-                properties = getPropertiesByFile(findFileOnUSBForMac());
-            else properties = getPropertiesByFile(findFileOnUSBForWindows());
-
-            timestampGlobal = NewPasswordController.createTimestamp();
+            Properties properties = getLocalPropertiesFile();
             properties.setProperty("timestamp", timestampGlobal);
 
-            // Save data on USB
-            OutputStream outputStream;
-
-            if ( getOperatingSystemName().equals("Mac OS X") )
-                outputStream = new FileOutputStream(findFileOnUSBForMac());
-            else outputStream = new FileOutputStream(findFileOnUSBForWindows());
+            File file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
+            OutputStream outputStream = new FileOutputStream(file);
             properties.store(outputStream, "");
 
-            // Save data on Local file
-            File file = new File(new File("").getAbsoluteFile() + "\\src\\sample\\credentials.properties");
-            outputStream = new FileOutputStream(file);
-            properties.store(outputStream, "");
+            // It is needed because old properties file was in RAM but new in HDD.
+            // But it should be same as in RAM as in HDD.
+            outputStream.flush();
+            outputStream.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        // Save data to USB file
+        File file = null;
+        if ( getOperatingSystemName().equals("Mac OS X") )
+            file = findFileOnUSBForMac();
+        else if ( getOperatingSystemName().equals("Windows 10") )
+            file = findFileOnUSBForWindows();
+
+        writeToFile(file);
     }
 
     static String getOperatingSystemName(){
-        //File file = openOrCreateFileOnUSB();
-
-        //writeToFile(file);
-        //Properties properties = parseFile(file);
-
-
+        //writeToFile(findFileOnUSBForMac());
 
         return System.getProperty("os.name");
-    }
-
-    static File openOrCreateFileOnUSB() {
-        File[] paths;
-
-        // Returns path names for files and directory
-        paths = File.listRoots();
-
-        for (File currentDrive : paths){
-            if ( currentDrive.listFiles() != null )
-                for ( File currentFile : currentDrive.listFiles() )
-                    if ( currentFile.getName().equals("security-new.properties") ){
-                        return currentFile;
-                    }
-        }
-
-        return new File("G://security-new.properties");
     }
 
     static void writeToFile(File file) {
@@ -244,9 +222,10 @@ public class MainController implements Initializable{
         }
     }
 
-    // TODO make non static
-    static Properties parseFile(File file) {
+    private Properties parseFile(File file) {
         BufferedReader bufferedReader = null;
+        Properties properties = null;
+
         try {
             bufferedReader = new BufferedReader(new FileReader(file));
             StringBuilder stringBuilder = new StringBuilder();
@@ -261,8 +240,12 @@ public class MainController implements Initializable{
             String text = stringBuilder.toString();
             String login = byteToString(text.split("nwln")[0].split(" "));
             String password = byteToString(text.split("nwln")[1].split(" "));
-            String timestamp = byteToString(text.split("nwln")[3].split(" "));
-            System.out.println("123");
+            String timestamp = byteToString(text.split("nwln")[2].split(" "));
+
+            properties = new Properties();
+            properties.put("login", login);
+            properties.put("password", password);
+            properties.put("timestamp", timestamp);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -274,10 +257,10 @@ public class MainController implements Initializable{
             }
         }
 
-        return null;
+        return properties;
     }
 
-    static String byteToString(String[] strings) {
+    private String byteToString(String[] strings) {
         StringBuilder result = new StringBuilder();
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         byteArrayOutputStream.reset();
@@ -306,18 +289,14 @@ public class MainController implements Initializable{
                     if ( findFileOnUSBForWindows() != null ) {
                         callFileFoundAlertBox();
 
-                        try {
-                            Properties properties = getPropertiesByFile(findFileOnUSBForWindows());
-                            setLogin(properties.getProperty("login"));
-                            setPassword(properties.getProperty("password"));
-                            setTimestamp(properties.getProperty("timestamp"));
+                        File file = findFileOnUSBForWindows();
+                        Properties properties = parseFile(file);
+                        setLogin(properties.getProperty("login"));
+                        setPassword(properties.getProperty("password"));
+                        setTimestamp(properties.getProperty("timestamp"));
 
-                            if ( properties.get("login") != null )
-                                authorization(properties);
-
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                        if ( properties.get("login") != null )
+                            authorization(properties);
 
                         break;
                     }
@@ -336,38 +315,37 @@ public class MainController implements Initializable{
         if ( getOperatingSystemName().equals("Mac OS X") )
             initListOfMacDevices = getListOfUSBDevicesOnMacOSX();
 
+        // TODO maybe because of javafx thread there is no label on Mac?
         javafx.application.Platform.runLater(() -> {
             while (true) {
+                if ( findDeviceOnMac() )
+                    break;
+
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
-                if ( findDeviceOnMac() )
-                    break;
-
             }
         });
     }
 
     private boolean findDeviceOnMac(){
-        if ( getListOfUSBDevicesOnMacOSX() > initListOfMacDevices ){
-            if ( findFileOnUSBForMac() != null ){
+        if ( getListOfUSBDevicesOnMacOSX() > initListOfMacDevices || findFileOnUSBForMac() != null ) {
+
+            if ( findFileOnUSBForMac() != null ) {
                 callFileFoundAlertBox();
 
-                try {
-                    Properties properties = getPropertiesByFile(findFileOnUSBForMac());
-                    setLogin(properties.getProperty("login"));
-                    setPassword(properties.getProperty("password"));
-                    setTimestamp(properties.getProperty("timestamp"));
+                File file = findFileOnUSBForMac();
+                Properties properties = parseFile(file);
+                setLogin(properties.getProperty("login"));
+                setPassword(properties.getProperty("password"));
+                setTimestamp(properties.getProperty("timestamp"));
 
-                    if ( properties.get("login") != null )
-                        authorization(properties);
+                if ( properties.get("login") != null )
+                    authorization(properties);
 
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
 
                 return true;
             }
@@ -383,18 +361,6 @@ public class MainController implements Initializable{
         return new File("/Volumes").listFiles().length;
     }
 
-    static File findFileOnUSBForMac(){
-        File volumes = new File("/Volumes");
-
-        for (File currentDrive : volumes.listFiles()){
-            if ( currentDrive.listFiles() != null )
-                for ( File currentFile : currentDrive.listFiles() )
-                    if ( currentFile.getName().equals("security.properties") )
-                        return currentFile;
-        }
-
-        return null;
-    }
 
     private void callFileFoundAlertBox() {
         alertBox = new Alert(Alert.AlertType.INFORMATION);
@@ -427,15 +393,16 @@ public class MainController implements Initializable{
     }
 
 
-    public void setLogin(String login) {
+
+    private void setLogin(String login) {
         this.login = login;
     }
 
-    public void setPassword(String password) {
+    private void setPassword(String password) {
         this.password = password;
     }
 
-    public void setTimestamp(String timestamp) {
+    private void setTimestamp(String timestamp) {
         this.timestamp = timestamp;
     }
 }

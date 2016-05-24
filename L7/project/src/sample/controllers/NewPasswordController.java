@@ -49,7 +49,7 @@ public class NewPasswordController {
 
 
     public void commitNewCredentials() {
-        if ( !Objects.equals(loginField.getText(), "") && !Objects.equals(passwordField.getText(), "") ){
+        if ( !Objects.equals(loginField.getText(), "") && !Objects.equals(passwordField.getText(), "") ) {
             saveNewLocalPropertiesFile(getLocalPropertiesFile());
             saveNewPropertirsFileToUSB(getLocalPropertiesFile());
             currentStage.close();
@@ -71,6 +71,7 @@ public class NewPasswordController {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
         return properties;
     }
 
@@ -86,16 +87,17 @@ public class NewPasswordController {
 
             // Convert bytes to hex format
             sb = new StringBuffer();
-            for (int i = 0; i < encoded.length; i++)
-                sb.append(Integer.toString((encoded[i] & 0xff) + 0x100, 16).substring(1));
+            for (byte anEncoded : encoded)
+                sb.append(Integer.toString((anEncoded & 0xff) + 0x100, 16).substring(1));
 
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
             e.printStackTrace();
         }
+
         return sb.toString();
     }
 
-    private String encryptPassword(){
+    private String encryptPassword() {
         // DES
         // Take password and divide it on 2 parts.
         // 1-st and 2-nd part proceed with DES.
@@ -131,18 +133,23 @@ public class NewPasswordController {
             DESCipher.init(Cipher.ENCRYPT_MODE, secretKey2);
             enctyptedPart2 = desEncrypt(messagePart2);
 
+            // There is a problem with symbol '=' in properties file and converting it into bytes and back to String.
+            enctyptedPart1 = enctyptedPart1.replaceAll("=", "");
+            enctyptedPart2 = enctyptedPart2.replaceAll("=", "");
+
 
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {
             e.printStackTrace();
         }
-        // TODO property file cannot store whitespaces and just "=", replace it
+
         return enctyptedPart1 + enctyptedPart2;
     }
 
 
 
-    private String desEncrypt(String message){
+    private String desEncrypt(String message) {
         byte[] encrypted = null;
+
         try {
 
             byte[] utf8 = message.getBytes("UTF-8");
@@ -156,13 +163,13 @@ public class NewPasswordController {
         return new BASE64Encoder().encode(encrypted);
     }
 
-    private void saveNewLocalPropertiesFile(Properties properties){
+    private void saveNewLocalPropertiesFile(Properties properties) {
         try {
             properties.setProperty("login", encryptLogin());
             properties.setProperty("password", encryptPassword());
             properties.setProperty("timestamp", MainController.timestampGlobal);
 
-            File file = new File(new File("").getAbsoluteFile() + "\\src\\sample\\credentials.properties");
+            File file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
             OutputStream outputStream = new FileOutputStream(file);
             properties.store(outputStream, "");
         } catch (IOException e) {
@@ -170,29 +177,28 @@ public class NewPasswordController {
         }
     }
 
-    private void saveNewPropertirsFileToUSB(Properties properties){
-        try {
-            properties.setProperty("login", encryptLogin());
-            properties.setProperty("password", encryptPassword());
-            properties.setProperty("timestamp", MainController.timestampGlobal);
+    private void saveNewPropertirsFileToUSB(Properties properties) {
+        properties.setProperty("login", encryptLogin());
+        properties.setProperty("password", encryptPassword());
+        properties.setProperty("timestamp", MainController.timestampGlobal);
 
-            File file;
-            if ( MainController.getOperatingSystemName().equals("Mac OS X") )
-                file = MainController.findFileOnUSBForMac();
-            else file = MainController.findFileOnUSBForWindows();
+        File file;
+        if ( MainController.getOperatingSystemName().equals("Mac OS X") )
+            file = MainController.findFileOnUSBForMac();
+        else file = MainController.findFileOnUSBForWindows();
 
-            OutputStream outputStream = new FileOutputStream(file);
-            properties.store(outputStream, "");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        MainController.writeToFile(file);
     }
 
-    static String createTimestamp(){
+    static String createTimestamp() {
         Calendar calendar = Calendar.getInstance();
         Date now = calendar.getTime();
         Timestamp timestamp = new Timestamp(now.getTime());
 
-        return timestamp.toString();
+        // There is a problem with whitespaces and ':' in properties file
+        // and converting it into bytes and back to String.
+        String result = timestamp.toString().replaceAll(" ", "---");
+
+        return result.replaceAll(":", "//");
     }
 }
