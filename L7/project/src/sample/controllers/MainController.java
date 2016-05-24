@@ -2,7 +2,6 @@ package sample.controllers;
 
 
 import javafx.application.Platform;
-import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
@@ -26,6 +25,7 @@ import java.io.InputStream;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -34,8 +34,19 @@ import java.util.ResourceBundle;
 
 public class MainController implements Initializable{
 
+    /**
+     * -- Example of working credentials.properties --
+     *   login=7815696ecbf1c96e6894b779456d330e
+     *   password=jzW/VCYp+vAoqDJcjRb6zA
+     *   timestamp=2016-05-24---20//41//21.881
+     *
+     * -- Example of working security-new.properties --
+     *   55 56 49 53 54 57 54 101 99 98 102 49 99 57 54 101 54 56 57 52 98 55 55 57 52 53 54 100 51 51 48 101
+     *   nwln106 122 87 47 86 67 89 112 43 118 65 111 113 68 74 99 106 82 98 54 122 65
+     *   nwln50 48 49 54 45 48 53 45 50 52 45 45 45 49 57 47 47 50 53 47 47 50 48 46 51 49 49 nwln
+     */
 
-    private Alert alertBox;
+    private Alert alertBox = new Alert(Alert.AlertType.CONFIRMATION);
 
     // values (login/password - admin) just for example, not usable in application
 
@@ -55,6 +66,8 @@ public class MainController implements Initializable{
     private static int initListOfMacDevices = 0;
 
     static String timestampGlobal;
+
+    private boolean isAuthorized = false;
 
     @FXML
     private Label helloLabel;
@@ -106,23 +119,25 @@ public class MainController implements Initializable{
     }
 
     public void showNewPasswordForm() {
-        javafx.application.Platform.runLater(() -> {
-            Parent root = null;
-            Stage stage = new Stage();
-            try {
-                root = FXMLLoader.load(getClass().getResource("../views/newPasswordForm.fxml"));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        if ( isAuthorized )
+            Platform.runLater(() -> {
+                Parent root = null;
+                Stage stage = new Stage();
+                try {
+                    root = FXMLLoader.load(getClass().getResource("../views/newPasswordForm.fxml"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
 
-            Scene scene = new Scene(root, 400, 200);
-            stage.setScene(scene);
-            stage.setResizable(false);
-            stage.initModality(Modality.WINDOW_MODAL);
-            stage.initOwner(mainStage.getScene().getWindow());
-            NewPasswordController.currentStage = stage;
-            stage.showAndWait();
-        });
+                Scene scene = new Scene(root, 400, 200);
+                stage.setScene(scene);
+                stage.setResizable(false);
+                stage.initModality(Modality.WINDOW_MODAL);
+                stage.initOwner(mainStage.getScene().getWindow());
+                NewPasswordController.currentStage = stage;
+                stage.showAndWait();
+            });
+        else showNotAuthorizedAlertBox();
     }
 
     @Override
@@ -150,15 +165,33 @@ public class MainController implements Initializable{
         try {
             Properties properties = getLocalPropertiesFile();
             properties.setProperty("timestamp", timestampGlobal);
+            File file;
+            OutputStream outputStream = null;
 
-            File file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
-            OutputStream outputStream = new FileOutputStream(file);
-            properties.store(outputStream, "");
+            try {
+                file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
+                outputStream = new FileOutputStream(file);
+            } catch (FileNotFoundException ignored) {
+            }
 
-            // It is needed because old properties file was in RAM but new in HDD.
-            // But it should be same as in RAM as in HDD.
-            outputStream.flush();
-            outputStream.close();
+            if ( outputStream == null )
+                try {
+                    file = new File(System.getProperty("user.dir") + "/L7/project/src/sample/credentials.properties");
+                    outputStream = new FileOutputStream(file);
+                } catch (FileNotFoundException ignored) {
+                }
+
+            try {
+                properties.store(outputStream, "");
+
+                // It is needed because old properties file was in RAM but new in HDD.
+                // But it should be same as in RAM as in HDD.
+                outputStream.flush();
+                outputStream.close();
+            } catch (NullPointerException e) {
+                showFileFoundAlertBox();
+            }
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -267,29 +300,31 @@ public class MainController implements Initializable{
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         byteArrayOutputStream.reset();
 
+        if ( strings.length != 0 ) {
+            for (String current : strings)
+                byteArrayOutputStream.write(new Byte(current));
 
-        for (String current : strings)
-            byteArrayOutputStream.write(new Byte(current));
-
-        result.append(new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8));
+            result.append(new String(byteArrayOutputStream.toByteArray(), StandardCharsets.UTF_8));
+        } else {
+            showNotValidSecurityFileAlertBox();
+            try {
+                throw new Exception("Error");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
         return result.toString();
     }
 
     private void windowsHandler(){
-        javafx.application.Platform.runLater(() -> {
+        new Thread(() -> {
             while (true) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
                 // Wait for USB input or just find it on HDD
-                if ( File.listRoots().length > initListOfWindowsDevices.length || findFileOnUSBForWindows() != null ) {
+                if (File.listRoots().length > initListOfWindowsDevices.length || findFileOnUSBForWindows() != null) {
 
-                    if ( findFileOnUSBForWindows() != null ) {
-                        callFileFoundAlertBox();
+                    if (findFileOnUSBForWindows() != null) {
+                        showFileFoundAlertBox();
 
                         File file = findFileOnUSBForWindows();
                         Properties properties = parseFile(file);
@@ -297,18 +332,24 @@ public class MainController implements Initializable{
                         setPassword(properties.getProperty("password"));
                         setTimestamp(properties.getProperty("timestamp"));
 
-                        if ( properties.get("login") != null )
+                        if (properties.get("login") != null)
                             authorization(properties);
 
                         break;
                     }
 
-                } else if ( File.listRoots().length < initListOfWindowsDevices.length ) {
+                } else if (File.listRoots().length < initListOfWindowsDevices.length) {
                     initListOfWindowsDevices = File.listRoots();
                 }
-
             }
-        });
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+        }).start();
 
 
     }
@@ -335,7 +376,7 @@ public class MainController implements Initializable{
         if ( getListOfUSBDevicesOnMacOSX() > initListOfMacDevices || findFileOnUSBForMac() != null ) {
 
             if ( findFileOnUSBForMac() != null ) {
-                callFileFoundAlertBox();
+                showFileFoundAlertBox();
 
                 File file = findFileOnUSBForMac();
                 Properties properties = parseFile(file);
@@ -362,22 +403,29 @@ public class MainController implements Initializable{
     }
 
 
-    private void callFileFoundAlertBox() {
+    private void showFileFoundAlertBox() {
         Platform.runLater(()-> {
-            alertBox = new Alert(Alert.AlertType.INFORMATION);
+            alertBox.setAlertType(Alert.AlertType.INFORMATION);
             alertBox.setHeaderText("File found!");
             alertBox.setContentText("");
-            alertBox.initOwner(mainStage.getScene().getWindow());
             alertBox.showAndWait();
         });
     }
 
-    private void callNotValidSecurityFileAlertBox() {
+    private void showNotValidSecurityFileAlertBox() {
         Platform.runLater(()-> {
             alertBox.setAlertType(Alert.AlertType.ERROR);
             alertBox.setHeaderText("Not valid security file");
             alertBox.setContentText("");
-            alertBox.initOwner(mainStage.getScene().getWindow());
+            alertBox.showAndWait();
+        });
+    }
+
+    private void showNotAuthorizedAlertBox() {
+        Platform.runLater(()-> {
+            alertBox.setAlertType(Alert.AlertType.INFORMATION);
+            alertBox.setHeaderText("Sorry, but you are not authorized");
+            alertBox.setContentText("");
             alertBox.showAndWait();
         });
     }
@@ -389,16 +437,15 @@ public class MainController implements Initializable{
 
             Platform.runLater(()-> {
                 helloLabel.setText("Welcome user!");
-                passwordButton.setVisible(true);
+                isAuthorized = true;
             });
 
             createAndWriteTimestamp();
 
         } else {
-            callNotValidSecurityFileAlertBox();
+            showNotValidSecurityFileAlertBox();
         }
     }
-
 
 
     private void setLogin(String login) {

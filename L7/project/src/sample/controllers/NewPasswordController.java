@@ -1,5 +1,6 @@
 package sample.controllers;
 
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.PasswordField;
@@ -54,11 +55,12 @@ public class NewPasswordController {
             saveNewPropertirsFileToUSB(getLocalPropertiesFile());
             currentStage.close();
         } else {
-            Alert alertBox = new Alert(Alert.AlertType.ERROR);
-            alertBox.setContentText("");
-            alertBox.setHeaderText("Fields are empty");
-            alertBox.initOwner(MainController.mainStage.getScene().getWindow());
-            alertBox.showAndWait();
+            Platform.runLater(() -> {
+                Alert alertBox = new Alert(Alert.AlertType.ERROR);
+                alertBox.setContentText("");
+                alertBox.setHeaderText("Fields are empty");
+                alertBox.showAndWait();
+            });
         }
 
     }
