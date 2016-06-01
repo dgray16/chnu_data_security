@@ -16,12 +16,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.BadPaddingException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.io.FileOutputStream;
-import java.io.File;
+import java.io.*;
 
 
 import java.security.InvalidKeyException;
@@ -170,10 +165,32 @@ public class NewPasswordController {
             properties.setProperty("login", encryptLogin());
             properties.setProperty("password", encryptPassword());
             properties.setProperty("timestamp", MainController.timestampGlobal);
+            OutputStream outputStream = null;
+            File file = null;
 
-            File file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
-            OutputStream outputStream = new FileOutputStream(file);
-            properties.store(outputStream, "");
+            try {
+                file = new File(System.getProperty("user.dir") + "/src/sample/credentials.properties");
+                outputStream = new FileOutputStream(file);
+            } catch (FileNotFoundException ignored) {
+            }
+
+            if ( outputStream == null )
+                try {
+                    file = new File(System.getProperty("user.dir") + "/L7/project/src/sample/credentials.properties");
+                    outputStream = new FileOutputStream(file);
+                } catch (FileNotFoundException ignored) {
+                }
+
+            try {
+                properties.store(outputStream, "");
+
+                // It is needed because old properties file was in RAM but new in HDD.
+                // But it should be same as in RAM as in HDD.
+                outputStream.flush();
+                outputStream.close();
+            } catch (NullPointerException ignored) {
+            }
+
         } catch (IOException e) {
             e.printStackTrace();
         }
